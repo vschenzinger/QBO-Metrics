@@ -13,5 +13,5 @@ Schenzinger, V., Osprey, S., Gray, L., and Butchart, N.:
 Defining metrics of the Quasi-Biennial Oscillation in global climate models, 
 Geosci. Model Dev., 10, 2157-2168, https://doi.org/10.5194/gmd-10-2157-2017, 2017. 
 
-including plots for a quick and concise overview.
+including plots for a quick and concise overview (see Metrics-ERA-I.png).
 Please cite the above publication when using the code.
