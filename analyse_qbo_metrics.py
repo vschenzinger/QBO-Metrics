@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 from mpl_toolkits.axes_grid1 import host_subplot
 import mpl_toolkits.axisartist as AA
-import read_write
-from read_write import *
 import Analysis_routines
 from Analysis_routines import *
 import netCDF4
@@ -38,13 +36,20 @@ f.close
 zmu=zmu[:,:,:,0]
 zmt=zmt[:,:,:,0]
 
+# Define constants (grid size)
+
 nlat=len(lat)
 nlev=len(press)
 ntime=len(time)
 
 zmu=zmu.T
 zmt=zmt.T
+
+# Time as calendaric series
+
 cal=np.arange(0,len(time))/12.+startdate
+
+# Possibility to restrict analysis to certain years
 
 selectdate=cal<enddate+1
 cal=cal[selectdate]
