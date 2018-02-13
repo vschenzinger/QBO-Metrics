@@ -128,6 +128,7 @@ def find_values(func, val):
 # Refine tests whether two adjacent zeros are too close (less then min_d)
 # If the amplitude between the two zeros exceeds max_a*max(abs(function)), it counts as real
 # max_a is a fraction => relative to maximum value of the absolute of the function
+# i.e. the lower the value, the more zeros will remain
 # Otherwise zeros get removed
 
 def get_zeros(func, val=0., min_d=None, max_a=None, refine=False, nans=False):
@@ -155,23 +156,37 @@ def get_zeros(func, val=0., min_d=None, max_a=None, refine=False, nans=False):
             min_d=10
         if not max_a:
             max_a=0.3
-        amplitude_limit=max_a*np.nanmax(abs(ftest))
+        amplitude_limit_pos=max_a*np.nanmax(ftest)  # Introduce two limits for positive/negative amplitudes as QBO is asymmetric in strength
+        amplitude_limit_neg=max_a*np.nanmin(ftest)
+#        print(amplitude_limit_pos,amplitude_limit_neg)
         zero_dist=zeros[1:]-zeros[0:-1]        # Find zeros that are too close together
-        zero_amps=[]
+        a_crit=[]
         for ii in range(0,len(zero_dist)):      # and where the amplitude in between is too small
-            zero_amps=np.append(zero_amps,np.nanmax(abs(ftest[int(zeros[ii]):int(zeros[ii+1])])))
+            cyc_amps=ftest[int(zeros[ii]):int(zeros[ii+1])]
+            if len(cyc_amps)>1:
+                if cyc_amps[1]>0:
+                    test=np.nanmax(cyc_amps)<amplitude_limit_pos
+                if cyc_amps[1]<0:
+                    test=np.nanmin(cyc_amps)>amplitude_limit_neg
+            else:
+                if cyc_amps[0]>0:
+                    test=np.nanmax(cyc_amps)<amplitude_limit_pos
+                if cyc_amps[0]<0:
+                    test=np.nanmin(cyc_amps)>amplitude_limit_neg
+            a_crit=np.append(a_crit,test)           
         d_crit=zero_dist < min_d                # Array of critical points by criterion
-        a_crit=zero_amps < amplitude_limit
         b_crit=np.logical_and(a_crit,d_crit)
-        for ii in range(0,len(zero_dist)):
+        for ii in range(0,len(zero_dist)):  
             if b_crit[ii]:       # Remove if both criteria are true
-                if b_crit[ii+1]: # Rare case of 3 critical crossings in a row => remove 1st and 3rd
-#                    print 'Remove zeros '+str(zeros[ii])+', '+str(zeros[ii+2])
+                if ii<(len(zero_dist)-1) and b_crit[ii+1]: # Rare case of 3 critical crossings in a row => remove 1st and 3rd
+#                    print 'Remove zeros '+str(zeros[ii])+', '+str(zeros[ii+2])+' (3 crit)'
                     zeros[ii]=np.nan
                     zeros[ii+2]=np.nan
                     b_crit[ii+1]=False
+                    if ii+2<len(zero_dist):
+                        b_crit[ii+2]=False                    
                 else:
-#                    print 'Remove zeros '+str(zeros[ii])+', '+str(zeros[ii+1])         
+#                    print 'Remove zeros '+str(zeros[ii])+', '+str(zeros[ii+1]) +' (2 crit)'        
                     zeros[ii]=np.nan
                     zeros[ii+1]=np.nan
         zeros=zeros[np.isfinite(zeros)]
@@ -269,10 +284,10 @@ def get_fwhm(xvals,yvals):
 # Uses the get_zeros function
 # Will calculate the time between every other zero crossing
 
-def get_periods(series, time, vv=0, md=None, ma=None, ref=False):
+def get_periods(series, time, vv=0, min_d=None, max_a=None, ref=False):
     data=series.flatten()
     if ref:
-        zeros=get_zeros(data, val=vv, min_d=md, max_a=ma, refine=True)
+        zeros=get_zeros(data, val=vv, min_d=min_d, max_a=max_a, refine=True)
     else:
         zeros=get_zeros(data, val=vv) 
     zerotime=get_vals_at(time,zeros)
@@ -331,7 +346,7 @@ def press_height(level,Pa=None,reverse=None):
             height=-scale_height*np.log(level/(100.*p_surf))
         return height
     else:
-        pressure=p_surf*np.exp(-level/scale_height)
+        pressure=p_surf*np.exp(-np.asarray(level)/scale_height)
         return pressure
 
 # Calculate descent rates

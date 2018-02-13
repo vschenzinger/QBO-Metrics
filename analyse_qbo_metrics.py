@@ -6,55 +6,23 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 from mpl_toolkits.axes_grid1 import host_subplot
 import mpl_toolkits.axisartist as AA
-import Analysis_routines
-from Analysis_routines import *
-import netCDF4
-from netCDF4 import Dataset
 
 
 # ========================== Load relevant data
 # Analysis needs
-# Time (in years), called cal
-# Pressure (in hPa), called press
+# Time (in calendaric years), called cal
+# Pressure levels (in hPa), called press
+# Latitude (in deg), called lat
 # zmu[lat,level,time]
 # zmT[lat,level,time]
 
-startdate=1979
-enddate=2016
 
-f=Dataset("ERA-Int_zmu_zmT.nc")
-zmu=f['u']
-zmt=f['t']
-latind=f['latitude']
-lat=latind[:]
-pind=f['level']
-press=pind[:]
-tind=f['time']
-time=tind[:]
-f.close
 
-zmu=zmu[:,:,:,0]
-zmt=zmt[:,:,:,0]
-
-# Define constants (grid size)
+# Useful numbers
 
 nlat=len(lat)
 nlev=len(press)
-ntime=len(time)
-
-zmu=zmu.T
-zmt=zmt.T
-
-# Time as calendaric series
-
-cal=np.arange(0,len(time))/12.+startdate
-
-# Possibility to restrict analysis to certain years
-
-selectdate=cal<enddate+1
-cal=cal[selectdate]
-zmu=zmu[:,:,selectdate]
-zmt=zmt[:,:,selectdate]
+ntime=len(cal)
 
 # =================  Retrieving the QBO metrics 
 height=press_height(press)
@@ -73,7 +41,7 @@ print(press[lev_prov])
 tests=spectrum[lev_prov,:].flatten()
 testf=frequencies.flatten()
 
-periods=get_periods(wind_eq[lev_prov,:],cal,ref=True)
+periods=get_periods(wind_eq[lev_prov,:],cal,ref=True,max_a=0.2,min_d=3.5)
 qboamps=get_mean_famp(wind_eq,cal,min(periods),max(periods))
 maxamp=np.nanmax(qboamps)
 maxlev=find_values(qboamps,np.nanmax(qboamps))
@@ -81,6 +49,10 @@ lowamp=0.1*np.nanmax(qboamps)
 lowlevs=press_height(get_vals_at(height,get_zeros(qboamps,val=lowamp)),reverse=True)
 lowlev=max(lowlevs)
 lev_fwhm=get_fwhm(height,qboamps)
+
+windtest=wind_eq[lev_prov,:]
+test={'wind':windtest}
+save_file(test,'test')
 
 #plt.plot()
 #plt.plot(testf.flatten(),tests.flatten())
@@ -92,7 +64,7 @@ lev_fwhm=get_fwhm(height,qboamps)
 #print(tests[np.logical_and(testf>=min(periods),testf<=max(periods))])
 
 
-zeros=get_zeros(wind_eq[maxlev,:],refine=True)
+zeros=get_zeros(wind_eq[maxlev,:],refine=True,max_a=0.2,min_d=3.5)
 
 erates,wrates=get_descent_rates(wind_eq_strat,press)
 erpz,wrpz=get_descent_rates(wind_eq_strat,press,per_zone=True)
@@ -122,7 +94,6 @@ for ii in np.arange(0,nn):
 
 wind_lat=zmu[:,maxlev,:]
 wind_lat=wind_lat.reshape(nlat,ntime)
-#print(wind_lat.shape)
 qboamps_lat=get_mean_famp(wind_lat,cal,min(periods),max(periods))
 lat_fwhm=get_fwhm(lat,qboamps_lat)
 lat_halfamp=0.5*np.nanmax(qboamps_lat)
@@ -137,11 +108,18 @@ temp_eq_strat=temp_eq[np.logical_and(press>=10,press<=70),:]
 spectrum_T,frequencies=get_spectrum(temp_eq,cal)
 
 qboamps_T=get_mean_famp(temp_eq,cal,min(periods),max(periods))
+plt.plot()
+plt.yscale('log')
+plt.plot(qboamps_T,press)
+plt.plot([np.nanmax(qboamps_T),np.nanmax(qboamps_T)],[min(press),max(press)])
+plt.plot([0.1*np.nanmax(qboamps_T),0.1*np.nanmax(qboamps_T)],[min(press),max(press)])
+plt.show()
+
 maxamp_T=np.nanmax(qboamps_T)
 maxlev_T=find_values(qboamps_T,np.nanmax(qboamps_T))
 lowamp_T=0.1*np.nanmax(qboamps_T)
-lowlevs=press_height(get_vals_at(height,get_zeros(qboamps_T,val=lowamp_T)),reverse=True)
-lowlev_T=max(lowlevs)
+lowlevs=press_height(get_vals_at(height,get_zeros(qboamps_T,val=lowamp_T,nans=True)),reverse=True)
+lowlev_T=max(lowlevs[np.logical_and(lowlevs>=10,lowlevs<=100)]) # Confine to stratosphere
 lev_fwhm_T=get_fwhm(height,qboamps_T)
 
 # Analyse latitudinal structure of zmt at height of maximum QBO amplitude
@@ -149,11 +127,13 @@ lev_fwhm_T=get_fwhm(height,qboamps_T)
 temp_lat_T=zmt[:,maxlev_T,:]
 temp_lat_T=temp_lat_T.reshape(nlat,ntime)
 qboamps_lat_T=get_mean_famp(temp_lat_T,cal,min(periods),max(periods))
-lat_fwhm_T=get_fwhm(lat[abs(lat)<30],qboamps_lat_T[abs(lat)<30])
+lat_fwhm_T=get_fwhm(lat[abs(lat)<15],qboamps_lat_T[abs(lat)<15])
 lat_halfamp_T=0.5*np.nanmax(qboamps_lat_T)
 lat_halfmax_T=get_vals_at(lat,get_zeros(qboamps_lat_T,val=lat_halfamp_T))
 
-lat_halfmax_T=lat_halfmax_T[lat_halfmax_T<30] #Confine to tropical latitudes (polar signal can be quite large)
+lat_halfmax_T=lat_halfmax_T[lat_halfmax_T<15] #Confine to tropical latitudes (polar signal can be quite large)
+
+print(lat_halfmax_T)
 
 qbo_lat_height_T=get_mean_famp(zmt,cal,min(periods),max(periods))
 # ================= 6 Characteristic plots
@@ -295,7 +275,7 @@ print('============  Characteristic QBO metrics of dataset (temperature)  ======
 print('Height of maximum (hPa)')
 print(press[maxlev_T])
 
-print('Fourier amplitude (m/s)')
+print('Fourier amplitude (K)')
 print(maxamp_T)
 
 print('Latitudinal extent (deg)')
