@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 from mpl_toolkits.axes_grid1 import host_subplot
 import mpl_toolkits.axisartist as AA
+from Analysis_routines import *
 
 
 # ========================== Load relevant data
@@ -108,12 +109,12 @@ temp_eq_strat=temp_eq[np.logical_and(press>=10,press<=70),:]
 spectrum_T,frequencies=get_spectrum(temp_eq,cal)
 
 qboamps_T=get_mean_famp(temp_eq,cal,min(periods),max(periods))
-plt.plot()
-plt.yscale('log')
-plt.plot(qboamps_T,press)
-plt.plot([np.nanmax(qboamps_T),np.nanmax(qboamps_T)],[min(press),max(press)])
-plt.plot([0.1*np.nanmax(qboamps_T),0.1*np.nanmax(qboamps_T)],[min(press),max(press)])
-plt.show()
+#plt.plot()
+#plt.yscale('log')
+#plt.plot(qboamps_T,press)
+#plt.plot([np.nanmax(qboamps_T),np.nanmax(qboamps_T)],[min(press),max(press)])
+#plt.plot([0.1*np.nanmax(qboamps_T),0.1*np.nanmax(qboamps_T)],[min(press),max(press)])
+#plt.show()
 
 maxamp_T=np.nanmax(qboamps_T)
 maxlev_T=find_values(qboamps_T,np.nanmax(qboamps_T))
