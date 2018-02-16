@@ -132,10 +132,7 @@ lat_fwhm_T=get_fwhm(lat[abs(lat)<15],qboamps_lat_T[abs(lat)<15])
 lat_halfamp_T=0.5*np.nanmax(qboamps_lat_T)
 lat_halfmax_T=get_vals_at(lat,get_zeros(qboamps_lat_T,val=lat_halfamp_T))
 
-lat_halfmax_T=lat_halfmax_T[lat_halfmax_T<15] #Confine to tropical latitudes (polar signal can be quite large)
-
-print(lat_halfmax_T)
-
+lat_halfmax_T=lat_halfmax_T[abs(lat_halfmax_T)<15] #Confine to tropical latitudes (polar signal can be quite large)
 qbo_lat_height_T=get_mean_famp(zmt,cal,min(periods),max(periods))
 # ================= 6 Characteristic plots
 
