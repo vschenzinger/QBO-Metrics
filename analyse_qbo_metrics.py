@@ -49,6 +49,7 @@ maxlev=find_values(qboamps,np.nanmax(qboamps))
 
 # Recalculating in case provisional level and actual level were different
 periods=get_periods(wind_eq[maxlev,:],cal,ref=True)
+zeros=get_zeros(wind_eq[maxlev,:],refine=True) # Just needed for plotting later
 qboamps=get_mean_famp(wind_eq,cal,min(periods),max(periods))
 maxamp=np.nanmax(qboamps)
 maxlev=find_values(qboamps,np.nanmax(qboamps))
@@ -56,22 +57,6 @@ lowamp=0.1*np.nanmax(qboamps)
 lowlevs=press_height(get_vals_at(height,get_zeros(qboamps,val=lowamp)),reverse=True)
 lowlev=max(lowlevs)
 lev_fwhm=get_fwhm(height,qboamps)
-
-windtest=wind_eq[maxlev,:]
-test={'wind':windtest}
-save_file(test,'test')
-
-#plt.plot()
-#plt.plot(testf.flatten(),tests.flatten())
-#plt.plot([min(periods),min(periods)],[0,50])
-#plt.plot([max(periods),max(periods)],[0,50])
-#plt.show()
-
-#print(testf[np.logical_and(testf>=min(periods),testf<=max(periods))])
-#print(tests[np.logical_and(testf>=min(periods),testf<=max(periods))])
-
-
-zeros=get_zeros(wind_eq[maxlev,:],refine=True,max_a=0.2,min_d=3.5)
 
 erates,wrates=get_descent_rates(wind_eq_strat,press)
 erpz,wrpz=get_descent_rates(wind_eq_strat,press,per_zone=True)
