@@ -42,7 +42,13 @@ print(press[lev_prov])
 tests=spectrum[lev_prov,:].flatten()
 testf=frequencies.flatten()
 
-periods=get_periods(wind_eq[lev_prov,:],cal,ref=True,max_a=0.2,min_d=3.5)
+periods=get_periods(wind_eq[lev_prov,:],cal,ref=True)
+qboamps=get_mean_famp(wind_eq,cal,min(periods),max(periods))
+maxamp=np.nanmax(qboamps)
+maxlev=find_values(qboamps,np.nanmax(qboamps))
+
+# Recalculating in case provisional level and actual level were different
+periods=get_periods(wind_eq[maxlev,:],cal,ref=True)
 qboamps=get_mean_famp(wind_eq,cal,min(periods),max(periods))
 maxamp=np.nanmax(qboamps)
 maxlev=find_values(qboamps,np.nanmax(qboamps))
@@ -51,7 +57,7 @@ lowlevs=press_height(get_vals_at(height,get_zeros(qboamps,val=lowamp)),reverse=T
 lowlev=max(lowlevs)
 lev_fwhm=get_fwhm(height,qboamps)
 
-windtest=wind_eq[lev_prov,:]
+windtest=wind_eq[maxlev,:]
 test={'wind':windtest}
 save_file(test,'test')
 
