@@ -18,11 +18,10 @@ from atmos_constants import *
 
 def clim_mean(data):
     dims=np.shape(data)
-    print(dims)
     ntime=dims[-1]
     newdims=dims[:-1]+(ntime/12,12)
     datam=np.reshape(data,newdims)
-    cmean=np.mean(datam,axis=-1)
+    cmean=np.mean(datam,axis=-2)
     return cmean
 
 # Remove (climatological) mean from data (time index last)
@@ -42,13 +41,13 @@ def declim(data, clim=True):
             print(newdims)
             datam=np.reshape(data,newdims)
             cmean=clim_mean(data)
-            declim_data=datam-cmean[...,np.newaxis]
-            np.reshape(declim_data,dims)
+            declim_data=datam-cmean[np.newaxis,...]
+            declim_data=np.reshape(declim_data,dims)
             return declim_data
     else:
         tmean=np.mean(data,axis=-1)
         de_data=data-tmean[...,np.newaxis]
-        return de_data
+	return de_data
 
 # Find local extremes of function
 # Input: function and type of extreme ('max' or 'min')
@@ -180,11 +179,21 @@ def get_zeros(func, val=0., min_d=None, max_a=None, refine=False, nans=False):
             if b_crit[ii]:       # Remove if both criteria are true
                 if ii<(len(zero_dist)-1) and b_crit[ii+1]: # Rare case of 3 critical crossings in a row => remove 1st and 3rd
 #                    print 'Remove zeros '+str(zeros[ii])+', '+str(zeros[ii+2])+' (3 crit)'
-                    zeros[ii]=np.nan
-                    zeros[ii+2]=np.nan
-                    b_crit[ii+1]=False
+#                    zeros[ii]=np.nan
+#                    zeros[ii+2]=np.nan
+#                    b_crit[ii+1]=False
+#                    if ii+2<len(zero_dist):
+#                        b_crit[ii+2]=False                    
+                    if ftest[int(np.ceil(zeros[ii+2]))] < 0:  # Decide which of the zeros are removed based on whether it is a W-E or E-W phase change
+                        zeros[ii]=np.nan
+                        zeros[ii+1]=np.nan
+                    else:
+                        zeros[ii+1]=np.nan
+                        zeros[ii+2]=np.nan
+                        b_crit[ii+1]=False
+                    b_crit[ii+1]=False                        
                     if ii+2<len(zero_dist):
-                        b_crit[ii+2]=False                    
+                        b_crit[ii+2]=False 
                 else:
 #                    print 'Remove zeros '+str(zeros[ii])+', '+str(zeros[ii+1]) +' (2 crit)'        
                     zeros[ii]=np.nan
@@ -282,19 +291,31 @@ def get_fwhm(xvals,yvals):
     
 # Get periods of a timeseries
 # Uses the get_zeros function
-# Will calculate the time between every other zero crossing
+# Default: Will calculate the time between every other zero crossing
+# Can calculate the periods of the shear zones separately (per_zone option)
 
-def get_periods(series, time, vv=0, min_d=None, max_a=None, ref=False):
+def get_periods(series, time, vv=0, min_d=None, max_a=None, ref=False, per_zone=False):
     data=series.flatten()
     if ref:
         zeros=get_zeros(data, val=vv, min_d=min_d, max_a=max_a, refine=True)
     else:
         zeros=get_zeros(data, val=vv) 
     zerotime=get_vals_at(time,zeros)
-    every_other=zerotime[::2]
-    periods=every_other[1:]-every_other[0:-1]
-    return periods
-
+    if not per_zone:
+        every_other=zerotime[::2]
+        periods=every_other[1:]-every_other[0:-1]
+        return periods
+    else:
+        periods=zerotime[1:]-zerotime[0:-1] # Calculate time between subsequent zero crossings
+        pick=np.arange(0,len(periods))%2
+        if data[int(np.ceil(zeros[0]))]>0:
+            wper=periods[pick==0]
+            eper=periods[pick==1]
+        else:
+            wper=periods[pick==1]
+            eper=periods[pick==0]
+        return wper,eper
+    
 # Calculate Fourier spectrum
 # For N-dimensional arrays assumes
 # last one is time index
@@ -338,7 +359,7 @@ def get_mean_famp(data, time, lower, upper):
 # to height coordinates (m)
 # Can be used in reverse mode (height(m) -> press(hPa))
 
-def press_height(level,Pa=None,reverse=None):
+def press_height(level,Pa=False,reverse=False):
     if not reverse:
         if not Pa:
             height=-scale_height*np.log(level/p_surf)
@@ -356,7 +377,7 @@ def press_height(level,Pa=None,reverse=None):
 # Returns 2 arrays: rates(East), rates(West)
 # in units of km/interval (depends on sampling interval)
 
-def get_descent_rates(zmu, press, Pa=None, per_zone=False, prev=False):
+def get_descent_rates(zmu, press, Pa=None, per_zone=False, prev=False, arrays=False):
     change_height=[]
     change_sign=[]
     east_rates=[]
@@ -408,7 +429,10 @@ def get_descent_rates(zmu, press, Pa=None, per_zone=False, prev=False):
                     east_rates=np.append(east_rates,change_height[tt-1]-change_height[tt])
                 if change_sign[tt] == 1:
                     west_rates=np.append(west_rates,change_height[tt-1]-change_height[tt])
-        return east_rates, west_rates
+        if not arrays:
+            return east_rates, west_rates
+        else:
+            return east_rates, west_rates, change_height, change_sign
     if per_zone:
         east_rpz=[]
         west_rpz=[]
@@ -419,11 +443,14 @@ def get_descent_rates(zmu, press, Pa=None, per_zone=False, prev=False):
                 current=np.append(current,change_height[tt-1]-change_height[tt])
             else:
                 if change_sign[tt-1]==-1:
-                    east_rpz=np.append(east_rpz,np.mean(current))
+                    east_rpz=np.append(east_rpz,np.nanmean(current))
                 if change_sign[tt-1]==1:
-                    west_rpz=np.append(west_rpz,np.mean(current))
+                    west_rpz=np.append(west_rpz,np.nanmean(current))
                 current=[]
-        return east_rpz, west_rpz
+        if not arrays:
+            return east_rpz, west_rpz
+        else:
+            return east_rpz, west_rpz, change_height, change_sign       
 
 # Construct a surrogate QBO timeseries (can be used for error estimation)
 # Takes a timeseries as input, identifies QBO cycles (between 2 subsequent minima)
