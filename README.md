@@ -1,7 +1,7 @@
 # QBO-Metrics
 Code to calculate metrics of the Quasi-Biennial Oscillation
 
-Contains two files, one with all the routines (Analysis-routines.py) 
+Contains two files, one with all the routines (Analysis_routines.py) 
 and the second one where data is read in (analyse_qbo_metrics.py).
 
 Input: field of zonal mean zonal wind and zonal mean temperature on
