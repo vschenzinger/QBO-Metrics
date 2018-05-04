@@ -14,14 +14,14 @@ from atmos_constants import *
 # Bootstrap test function
 
 # Calculate climatological mean of data (time dimension last)
-# Only works when data is in full years (i.e. time dimension is multiple of 12)
 
 def clim_mean(data):
     dims=np.shape(data)
     ntime=dims[-1]
-    newdims=dims[:-1]+(ntime/12,12)
-    datam=np.reshape(data,newdims)
-    cmean=np.mean(datam,axis=-2)
+    months=np.arange(ntime)%12
+    cmean=np.zeros((dims[:-1])+(12,))
+    for mm in range(0,12):
+	cmean[...,mm]=np.nanmean(data[...,months==mm],axis=-1)
     return cmean
 
 # Remove (climatological) mean from data (time index last)
@@ -33,21 +33,18 @@ def declim(data, clim=True):
         dims=np.shape(data)
         ndims=np.size(dims)
         ntime=dims[-1]
-        if ntime % 12 != 0:
-            print('Error: Time dimension should be multiple of 12')
-            return
-        else:
-            newdims=dims[:-1]+(ntime/12,12)
-            print(newdims)
-            datam=np.reshape(data,newdims)
-            cmean=clim_mean(data)
-            declim_data=datam-cmean[np.newaxis,...]
-            declim_data=np.reshape(declim_data,dims)
-            return declim_data
+    	months=np.arange(ntime)%12
+	cmean=clim_mean(data)
+	de_data=np.zeros(dims)
+    	for mm in range(0,12):
+	    dmon=data[...,months==mm]-cmean[...,mm]
+	    de_data[...,months==mm]=dmon
+	return de_data
     else:
         tmean=np.mean(data,axis=-1)
         de_data=data-tmean[...,np.newaxis]
 	return de_data
+
 
 # Find local extremes of function
 # Input: function and type of extreme ('max' or 'min')
