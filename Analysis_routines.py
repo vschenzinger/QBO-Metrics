@@ -26,7 +26,6 @@ def clim_mean(data):
 
 # Remove (climatological) mean from data (time index last)
 # Returns data without (climatological) mean (i.e. deseasonalized or detrended)
-# Only works when data is in full years (i.e. time dimension is multiple of 12)
 
 def declim(data, clim=True):
     if clim:
