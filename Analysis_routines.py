@@ -4,9 +4,13 @@ import math
 import scipy
 import matplotlib.pyplot as plt
 from scipy import stats
+from scipy.signal import freqz
+from scipy.signal import butter, lfilter
 import random
 import atmos_constants
 from atmos_constants import *
+
+
 
 # Define routines used for QBO analysis in climate models
 # Contains functions for all QBO metrics ()
@@ -14,6 +18,17 @@ from atmos_constants import *
 # Bootstrap test function
 
 # Calculate climatological mean of data (time dimension last)
+# Only works when data is in full years (i.e. time dimension is multiple of 12)
+
+def clim_mean_old(data):
+    dims=np.shape(data)
+    ntime=dims[-1]
+    newdims=dims[:-1]+(ntime/12,12)
+    datam=np.reshape(data,newdims)
+    cmean=np.mean(datam,axis=-2)
+    return cmean
+
+# New routine, should work on any record length
 
 def clim_mean(data):
     dims=np.shape(data)
@@ -26,6 +41,30 @@ def clim_mean(data):
 
 # Remove (climatological) mean from data (time index last)
 # Returns data without (climatological) mean (i.e. deseasonalized or detrended)
+# Only works when data is in full years (i.e. time dimension is multiple of 12)
+
+def declim_old(data, clim=True):
+    if clim:
+        dims=np.shape(data)
+        ndims=np.size(dims)
+        ntime=dims[-1]
+        if ntime % 12 != 0:
+            print('Error: Time dimension should be multiple of 12')
+            return
+        else:
+            newdims=dims[:-1]+(ntime/12,12)
+            print(newdims)
+            datam=np.reshape(data,newdims)
+            cmean=clim_mean(data)
+            declim_data=datam-cmean[np.newaxis,...]
+            declim_data=np.reshape(declim_data,dims)
+            return declim_data
+    else:
+        tmean=np.mean(data,axis=-1)
+        de_data=data-tmean[...,np.newaxis]
+	return de_data
+
+# Make use of new clim_mean routine
 
 def declim(data, clim=True):
     if clim:
@@ -98,14 +137,18 @@ def find_cycle_extremes(func, typ, min_d=None, max_a=None, refine=False, singmax
             maxpos=np.append(maxpos,find_values(locfunc,np.nanmax(locfunc))+cyclepos[ii-1])
         else:
             maxpos=np.append(maxpos,np.nanmin(find_values(locfunc,np.nanmax(locfunc)))+cyclepos[ii-1])
-    if 2*ii+1<len(zeropos) and func[zeropos[2*ii+1]]>0: # Last half cycle if uneven number of half cycles
-        locfunc=func[zeropos[2*ii]:zeropos[2*ii+1]]
-        if not singmax:
-            maxpos=np.append(maxpos,find_values(locfunc,np.nanmax(locfunc))+zeropos[2*ii])
-        else:
-            maxpos=np.append(maxpos,np.nanmin(find_values(locfunc,np.nanmax(locfunc)))+zeropos[2*ii])        
-    maxpos=maxpos.astype('int64')
-    return maxpos
+    if len(cyclepos)==0: # No cycles to detect
+	print('No cycles found')
+	maxpos=np.nan
+    else:
+    	if 2*ii+1<len(zeropos) and func[zeropos[2*ii+1]]>0: # Last half cycle if uneven number of half cycles
+            locfunc=func[zeropos[2*ii]:zeropos[2*ii+1]]
+            if not singmax:
+                maxpos=np.append(maxpos,find_values(locfunc,np.nanmax(locfunc))+zeropos[2*ii])
+            else:
+                maxpos=np.append(maxpos,np.nanmin(find_values(locfunc,np.nanmax(locfunc)))+zeropos[2*ii])        
+    	maxpos=maxpos.astype('int64')
+    	return maxpos
     
 # Find all indices where an array equals a certain value
 
@@ -311,6 +354,29 @@ def get_periods(series, time, vv=0, min_d=None, max_a=None, ref=False, per_zone=
             wper=periods[pick==1]
             eper=periods[pick==0]
         return wper,eper
+
+# Gets months of phase change
+# If first month of timeseries is any other than January, change startmonth accordingly (0=Jan, 1=Feb, ... , 11=Dec)
+# Input: Timeseries of wind, calendaric time
+# Output: Two arrays with month of E-W and W-E transitions respectively
+
+def get_change_months(func,startmonth=0,min_d=None, max_a=None, ref=False, sel=None):
+    func=func.flatten()
+    if ref:
+        zeros=get_zeros(func, min_d=min_d, max_a=max_a, refine=True)
+    else:
+        zeros=get_zeros(func) 
+    if sel:
+	zeros=zeros[sel]
+    change_month=np.floor(zeros).astype(int)%12
+    if func[int(math.floor(zeros[0]))]>0:                 # Check whether first change is W->E or E->W
+	we_change=change_month[0::2]
+	ew_change=change_month[1::2]
+    else:
+	we_change=change_month[1::2]
+	ew_change=change_month[0::2]
+    return ew_change,we_change
+
     
 # Calculate Fourier spectrum
 # For N-dimensional arrays assumes
@@ -396,7 +462,10 @@ def get_descent_rates(zmu, press, Pa=None, per_zone=False, prev=False, arrays=Fa
             if len(changes) == 1:                                 # Save height of the phase change
                 chose_height=changes[0]
             else:                                                 # More than 1 zero crossing
-                ref_height=change_height[tt-1]
+                if tt!=0:
+		    ref_height=change_height[tt-1]
+		else:
+		    ref_height=min(press)
                 if np.isnan(ref_height):
                     chose_height=changes[np.where(get_vals_at(press,changes)==min(get_vals_at(press,changes)))]                  # In lack of reference height, choose the highest level
                 else:
@@ -461,6 +530,23 @@ def surrogate_qbo(func,n_cycles=1000):
         ran_n=random.randrange(0,n_orig)
         qbo_surr=np.concatenate((qbo_surr,func[lmin[ran_n]:lmin[ran_n+1]]))
     return qbo_surr
+
+# Define a bandpass filter
+# Input: Timeseries, lower cut, higher cut, sampling frequency, order(optional))
+# Cuts and sample frequency must have the same unit (1/time)
+
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = butter(order, [low, high], btype='band')
+    return b, a
+
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
 
 
     
