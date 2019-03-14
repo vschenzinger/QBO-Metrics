@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from scipy import stats
 from scipy.signal import freqz
 from scipy.signal import butter, lfilter
+import statsmodels.api as sm
 import random
 import atmos_constants
 from atmos_constants import *
@@ -554,11 +555,14 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
 # Needs input y (predicted variable) as vector
 # Needs input x (explanatory variables) as matrix
 
-def reg_m(y, x):
-    x = np.array(x).T,
-    x = sm.add_constant(x)
-    results = sm.OLS(endog=y, exog=x).fit()
-    return results
+def reg_m(values, predictors):
+    predictors = sm.add_constant(predictors)
+    results = sm.OLS(values, predictors).fit()
+    #print(results.summary())
+    #print(results.params)
+    coeffs = results.params
+    pvals = results.pvalues
+    return coeffs, pvals
 
 # Bootstrap test - Testing whether a sample mean is based on a random selection
 # Input: Mean to be tested (sample[space_dims])
@@ -587,4 +591,29 @@ def bootstrap(sample,n_sample,basis,n_test=10000):
     percentiles=np.reshape(percentiles,dims)
     return percentiles
 
+# Find QBO state in winter
+# Default: Single months
+# Optional: DJF mean (sampling = 'average')
+# Assumes that QBO timeseries starts in January and comprises full years
+# Input: Timeseries of equatorial zmz wind at one pressure level
+# Output: Array of same length as original timeseries with winter months
+#	  classified as 'West' = 1, 'East' = -1, 'Neutral' = 0 and others as 'None' = np.nan
 
+def qbo_states(qbo, sampling='single'):
+	n_years=len(qbo)/12
+	states=np.full(len(qbo),np.nan)
+	if sampling == 'single':
+		mons = np.arange(1,len(qbo)+1) % 12
+		qbo_DJF = qbo
+		qbo_DJF[mons>=3] = np.nan
+	if sampling == 'average':	
+		# Calculate DJF averages and put value in array corresponding to winter months
+		qbo_DJF=np.full((len(qbo)),np.nan)
+		for y in np.arange(1,n_years+1):
+			qbo_DJF[12*y-1:12*y+2]=np.nanmean(qbo[12*y-1:12*y+1])
+			qbo_DJF[-1]=qbo[-1]
+			qbo_DJF[0:2]=np.nanmean(qbo[0:1])
+	states[qbo_DJF>5.] = 1
+	states[qbo_DJF<-5.] = -1
+	states[abs(qbo_DJF)<=5.] = 0
+	return states
